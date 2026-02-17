@@ -1,0 +1,40 @@
+[package]
+name = "alice-motion"
+version = "0.1.0"
+edition = "2021"
+authors = ["Moroya Sakamoto"]
+description = "Procedural Motion Control — Don't send waypoints, send the trajectory equation"
+license = "MIT"
+repository = "https://github.com/ext-sakamoro/ALICE-Motion"
+keywords = ["robotics", "motion-control", "nurbs", "trajectory", "no_std"]
+categories = ["embedded", "science::robotics", "no-std"]
+readme = "README.md"
+
+[lib]
+name = "alice_motion"
+path = "src/lib.rs"
+
+[features]
+default = []
+std = []
+physics = ["std"]  # ALICE-Physics deterministic integration (future)
+edge = ["std"]     # ALICE-Edge sensor feedback bridge (future)
+ros2 = ["std"]     # ROS 2 message bridge (future)
+
+[dependencies]
+# ALICE ecosystem integrations (future)
+# alice-physics = { path = "../ALICE-Physics", optional = true, default-features = false }
+# alice-edge = { path = "../ALICE-Edge", optional = true, features = ["std"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = false
