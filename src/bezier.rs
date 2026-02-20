@@ -74,8 +74,9 @@ impl CubicBezier {
     pub fn arc_length(&self, subdivisions: usize) -> f32 {
         let mut length = 0.0f32;
         let mut prev = self.position(0.0);
+        let inv_sub = 1.0 / subdivisions as f32;
         for i in 1..=subdivisions {
-            let t = i as f32 / subdivisions as f32;
+            let t = i as f32 * inv_sub;
             let curr = self.position(t);
             length += prev.distance(curr);
             prev = curr;

@@ -72,16 +72,18 @@ impl NurbsCurve {
         if denominator.abs() < 1e-10 {
             Vec3::ZERO
         } else {
-            numerator * (1.0 / denominator)
+            let inv_denom = 1.0 / denominator;
+            numerator * inv_denom
         }
     }
 
     /// Evaluate first derivative (velocity) using finite differences
     pub fn velocity(&self, u: f32) -> Vec3 {
+        const INV_2H: f32 = 1.0 / (2.0 * 0.001);
         let h = 0.001;
         let p0 = self.position((u - h).max(0.0));
         let p1 = self.position((u + h).min(1.0));
-        (p1 - p0) * (1.0 / (2.0 * h))
+        (p1 - p0) * INV_2H
     }
 
     /// Number of control points
@@ -93,8 +95,9 @@ impl NurbsCurve {
     pub fn arc_length(&self, subdivisions: usize) -> f32 {
         let mut length = 0.0f32;
         let mut prev = self.position(0.0);
+        let inv_sub = 1.0 / subdivisions as f32;
         for i in 1..=subdivisions {
-            let t = i as f32 / subdivisions as f32;
+            let t = i as f32 * inv_sub;
             let curr = self.position(t);
             length += prev.distance(curr);
             prev = curr;
@@ -119,13 +122,14 @@ impl NurbsCurve {
 
         let denom1 = self.knots[i + p] - self.knots[i];
         if denom1.abs() > 1e-10 {
-            result += (u - self.knots[i]) / denom1 * self.basis_function(i, p - 1, u);
+            let inv_d1 = 1.0 / denom1;
+            result += (u - self.knots[i]) * inv_d1 * self.basis_function(i, p - 1, u);
         }
 
         let denom2 = self.knots[i + p + 1] - self.knots[i + 1];
         if denom2.abs() > 1e-10 {
-            result +=
-                (self.knots[i + p + 1] - u) / denom2 * self.basis_function(i + 1, p - 1, u);
+            let inv_d2 = 1.0 / denom2;
+            result += (self.knots[i + p + 1] - u) * inv_d2 * self.basis_function(i + 1, p - 1, u);
         }
 
         result

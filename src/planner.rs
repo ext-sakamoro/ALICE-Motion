@@ -66,20 +66,24 @@ impl MotionPlan {
 
     /// Velocity vector at time t
     pub fn velocity(&self, t: f32) -> Vec3 {
-        let h = 0.0005;
-        let p0 = self.position((t - h).max(0.0));
-        let p1 = self.position((t + h).min(self.duration()));
-        let dt = if t < h { h } else if t > self.duration() - h { h } else { 2.0 * h };
-        (p1 - p0) * (1.0 / dt)
+        const H: f32 = 0.0005;
+        const INV_2H: f32 = 1.0 / (2.0 * 0.0005);
+        const INV_H: f32 = 1.0 / 0.0005;
+        let p0 = self.position((t - H).max(0.0));
+        let p1 = self.position((t + H).min(self.duration()));
+        let inv_dt = if t < H || t > self.duration() - H { INV_H } else { INV_2H };
+        (p1 - p0) * inv_dt
     }
 
     /// Acceleration vector at time t
     pub fn acceleration(&self, t: f32) -> Vec3 {
-        let h = 0.001;
-        let v0 = self.velocity((t - h).max(0.0));
-        let v1 = self.velocity((t + h).min(self.duration()));
-        let dt = if t < h { h } else if t > self.duration() - h { h } else { 2.0 * h };
-        (v1 - v0) * (1.0 / dt)
+        const H: f32 = 0.001;
+        const INV_2H: f32 = 1.0 / (2.0 * 0.001);
+        const INV_H: f32 = 1.0 / 0.001;
+        let v0 = self.velocity((t - H).max(0.0));
+        let v1 = self.velocity((t + H).min(self.duration()));
+        let inv_dt = if t < H || t > self.duration() - H { INV_H } else { INV_2H };
+        (v1 - v0) * inv_dt
     }
 
     /// Total motion duration
@@ -91,17 +95,20 @@ impl MotionPlan {
     }
 
     /// Path parameter s ∈ [0, 1] at time t
+    #[inline(always)]
     fn path_parameter(&self, t: f32) -> f32 {
         let dist = match &self.profile {
             ProfileKind::Trapezoidal(p) => {
                 let total = p.distance;
                 if total < 1e-10 { return 0.0; }
-                p.position_at(t) / total
+                let inv_total = 1.0 / total;
+                p.position_at(t) * inv_total
             }
             ProfileKind::SCurve(p) => {
                 let total = p.distance;
                 if total < 1e-10 { return 0.0; }
-                p.position_at(t) / total
+                let inv_total = 1.0 / total;
+                p.position_at(t) * inv_total
             }
         };
         dist.clamp(0.0, 1.0)

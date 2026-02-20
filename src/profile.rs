@@ -164,23 +164,26 @@ impl SCurveProfile {
 impl VelocityProfile for SCurveProfile {
     fn position_at(&self, t: f32) -> f32 {
         // Simplified: use trapezoidal with smoothed corners
-        let normalized = t / self.total_time;
+        let inv_total = 1.0 / self.total_time;
+        let normalized = t * inv_total;
         let smoothed = smoothstep(normalized);
         smoothed * self.distance
     }
 
     fn velocity_at(&self, t: f32) -> f32 {
+        const INV_2H: f32 = 1.0 / (2.0 * 0.001);
         let h = 0.001;
         let p0 = self.position_at((t - h).max(0.0));
         let p1 = self.position_at((t + h).min(self.total_time));
-        (p1 - p0) / (2.0 * h)
+        (p1 - p0) * INV_2H
     }
 
     fn acceleration_at(&self, t: f32) -> f32 {
+        const INV_2H: f32 = 1.0 / (2.0 * 0.001);
         let h = 0.001;
         let v0 = self.velocity_at((t - h).max(0.0));
         let v1 = self.velocity_at((t + h).min(self.total_time));
-        (v1 - v0) / (2.0 * h)
+        (v1 - v0) * INV_2H
     }
 
     fn duration(&self) -> f32 {
@@ -196,7 +199,7 @@ fn smoothstep(x: f32) -> f32 {
 }
 
 /// Fast sqrt for no_std profile computation
-#[inline]
+#[inline(always)]
 fn fast_sqrt_profile(x: f32) -> f32 {
     if x <= 0.0 {
         return 0.0;
@@ -204,7 +207,8 @@ fn fast_sqrt_profile(x: f32) -> f32 {
     let i = f32::to_bits(x);
     let i = 0x1fbd1df5 + (i >> 1);
     let y = f32::from_bits(i);
-    0.5 * (y + x / y)
+    let inv_y = 1.0 / y;
+    0.5 * (y + x * inv_y)
 }
 
 #[cfg(test)]

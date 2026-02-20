@@ -36,7 +36,7 @@ impl Vec3 {
         [self.x, self.y, self.z]
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
@@ -50,17 +50,17 @@ impl Vec3 {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn length(self) -> f32 {
         fast_sqrt(self.length_squared())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn normalize(self) -> Self {
         let len = self.length();
         if len < 1e-10 {
@@ -90,7 +90,7 @@ impl Vec3 {
 }
 
 /// Fast sqrt approximation (Quake-style + Newton-Raphson)
-#[inline]
+#[inline(always)]
 fn fast_sqrt(x: f32) -> f32 {
     if x <= 0.0 {
         return 0.0;
@@ -98,8 +98,9 @@ fn fast_sqrt(x: f32) -> f32 {
     let i = f32::to_bits(x);
     let i = 0x1fbd1df5 + (i >> 1); // Initial approximation
     let y = f32::from_bits(i);
-    // One Newton-Raphson step
-    0.5 * (y + x / y)
+    // One Newton-Raphson step: 0.5 * (y + x/y) = 0.5 * y + 0.5 * x * inv_y
+    let inv_y = 1.0 / y;
+    0.5 * (y + x * inv_y)
 }
 
 impl core::ops::Add for Vec3 {
