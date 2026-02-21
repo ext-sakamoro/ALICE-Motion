@@ -275,4 +275,172 @@ mod tests {
         let y = f32::from_bits(i);
         0.5 * (y + x / y)
     }
+
+    // --- Additional tests ---
+
+    #[test]
+    fn test_nurbs_degree_field() {
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::ZERO)
+            .add_point(Vec3::new(1.0, 0.0, 0.0))
+            .add_point(Vec3::new(2.0, 0.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        assert_eq!(curve.degree, 3);
+    }
+
+    #[test]
+    fn test_nurbs_point_count() {
+        let curve = NurbsCurve::builder(2)
+            .add_point(Vec3::ZERO)
+            .add_point(Vec3::new(1.0, 0.0, 0.0))
+            .add_point(Vec3::new(2.0, 0.0, 0.0))
+            .build();
+        assert_eq!(curve.point_count(), 3);
+    }
+
+    #[test]
+    fn test_nurbs_position_within_bounds() {
+        // All sampled positions must have x in [0, 3] for these control points
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 1.0, 0.0))
+            .add_point(Vec3::new(2.0, 1.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        for i in 0..=20 {
+            let u = i as f32 / 20.0;
+            let p = curve.position(u);
+            assert!(p.x >= -0.01 && p.x <= 3.01, "x out of range at u={u}: {}", p.x);
+        }
+    }
+
+    #[test]
+    fn test_nurbs_degree2_three_points() {
+        // Minimum case: degree-2 with exactly 3 points
+        let curve = NurbsCurve::builder(2)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 1.0, 0.0))
+            .add_point(Vec3::new(2.0, 0.0, 0.0))
+            .build();
+        assert_eq!(curve.point_count(), 3);
+        let start = curve.position(0.0);
+        let end = curve.position(1.0);
+        assert!(start.distance(Vec3::ZERO) < 0.1);
+        assert!((end.x - 2.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_nurbs_velocity_finite() {
+        // Velocity must be finite everywhere (no NaN/Inf)
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 2.0, 0.0))
+            .add_point(Vec3::new(2.0, 2.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        for i in 0..=10 {
+            let u = i as f32 / 10.0;
+            let v = curve.velocity(u);
+            assert!(v.x.is_finite(), "velocity.x must be finite at u={u}");
+            assert!(v.y.is_finite(), "velocity.y must be finite at u={u}");
+            assert!(v.z.is_finite(), "velocity.z must be finite at u={u}");
+        }
+    }
+
+    #[test]
+    fn test_nurbs_arc_length_increases_with_points() {
+        // More spread-out points → longer arc length
+        let short_curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(0.5, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.5, 0.0, 0.0))
+            .build();
+        let long_curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(5.0, 0.0, 0.0))
+            .add_point(Vec3::new(10.0, 0.0, 0.0))
+            .add_point(Vec3::new(15.0, 0.0, 0.0))
+            .build();
+        let short_len = short_curve.arc_length(50);
+        let long_len = long_curve.arc_length(50);
+        assert!(long_len > short_len, "longer span must yield longer arc, {} vs {}", long_len, short_len);
+    }
+
+    #[test]
+    fn test_nurbs_builder_overflow_silently_truncates() {
+        // Adding more than MAX_CONTROL_POINTS (16) should not panic
+        let mut builder = NurbsCurve::builder(3);
+        // Add 20 points — only 16 should be accepted
+        for i in 0..20 {
+            builder = builder.add_point(Vec3::new(i as f32, 0.0, 0.0));
+        }
+        let curve = builder.build();
+        assert!(curve.point_count() <= MAX_CONTROL_POINTS);
+    }
+
+    #[test]
+    fn test_nurbs_weighted_point_count() {
+        let curve = NurbsCurve::builder(2)
+            .add_weighted_point(Vec3::new(0.0, 0.0, 0.0), 1.0)
+            .add_weighted_point(Vec3::new(1.0, 1.0, 0.0), 2.0)
+            .add_weighted_point(Vec3::new(2.0, 0.0, 0.0), 1.0)
+            .build();
+        assert_eq!(curve.point_count(), 3);
+    }
+
+    // FNV-1a content hash over a sampled NURBS trajectory
+    fn fnv1a(data: &[u8]) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for &b in data {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+
+    fn hash_nurbs_samples(curve: &NurbsCurve, n: usize) -> u64 {
+        let mut bytes = [0u8; 12]; // 3 x f32
+        let mut h: u64 = 0xcbf29ce484222325;
+        for i in 0..=n {
+            let u = i as f32 / n as f32;
+            let p = curve.position(u);
+            let px = p.x.to_bits().to_le_bytes();
+            let py = p.y.to_bits().to_le_bytes();
+            let pz = p.z.to_bits().to_le_bytes();
+            bytes[0..4].copy_from_slice(&px);
+            bytes[4..8].copy_from_slice(&py);
+            bytes[8..12].copy_from_slice(&pz);
+            let next = fnv1a(&bytes);
+            h ^= next;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+
+    #[test]
+    fn test_nurbs_sample_hash_nonzero() {
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 2.0, 0.0))
+            .add_point(Vec3::new(2.0, 2.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        let h = hash_nurbs_samples(&curve, 16);
+        assert_ne!(h, 0, "content hash must not be zero");
+    }
+
+    #[test]
+    fn test_nurbs_sample_hash_deterministic() {
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 2.0, 0.0))
+            .add_point(Vec3::new(2.0, 2.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        let h1 = hash_nurbs_samples(&curve, 16);
+        let h2 = hash_nurbs_samples(&curve, 16);
+        assert_eq!(h1, h2, "content hash must be deterministic");
+    }
 }

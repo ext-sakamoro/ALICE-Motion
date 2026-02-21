@@ -245,4 +245,136 @@ mod tests {
     fn test_size() {
         assert_eq!(CubicBezier::size_bytes(), 48);
     }
+
+    // --- Additional tests ---
+
+    #[test]
+    fn test_bezier_acceleration_at_endpoints() {
+        // Acceleration is defined at t=0 and t=1
+        let b = CubicBezier::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 2.0, 0.0),
+            Vec3::new(3.0, 2.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+        );
+        // Should not panic and should return finite values
+        let a0 = b.acceleration(0.0);
+        let a1 = b.acceleration(1.0);
+        assert!(a0.x.is_finite());
+        assert!(a1.x.is_finite());
+    }
+
+    #[test]
+    fn test_bezier_position_is_convex_hull_bounded() {
+        // For any t in [0,1], the result must lie between min/max of control points
+        let b = CubicBezier::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 3.0, 0.0),
+            Vec3::new(3.0, 3.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+        );
+        for i in 0..=10 {
+            let t = i as f32 / 10.0;
+            let p = b.position(t);
+            assert!(p.x >= -0.01 && p.x <= 4.01, "x out of convex hull at t={t}: {}", p.x);
+            assert!(p.y >= -0.01 && p.y <= 3.01, "y out of convex hull at t={t}: {}", p.y);
+        }
+    }
+
+    #[test]
+    fn test_bezier_velocity_zero_at_collinear() {
+        // Collinear control points → velocity direction stays along the line
+        let b = CubicBezier::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+        );
+        for i in 0..=10 {
+            let t = i as f32 / 10.0;
+            let v = b.velocity(t);
+            assert!(v.y.abs() < 1e-5, "y-velocity should be 0 for collinear points at t={t}");
+            assert!(v.z.abs() < 1e-5, "z-velocity should be 0 for collinear points at t={t}");
+        }
+    }
+
+    #[test]
+    fn test_bezier_split_continuity() {
+        // Split at various t values and check position continuity
+        let b = CubicBezier::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 4.0, 1.0),
+            Vec3::new(6.0, 4.0, -1.0),
+            Vec3::new(8.0, 0.0, 0.0),
+        );
+        for i in 1..=9 {
+            let t = i as f32 / 10.0;
+            let (left, right) = b.split(t);
+            let junction_left = left.position(1.0);
+            let junction_right = right.position(0.0);
+            assert!(
+                junction_left.distance(junction_right) < 1e-4,
+                "split discontinuity at t={t}: {:?} vs {:?}", junction_left, junction_right
+            );
+        }
+    }
+
+    #[test]
+    fn test_bezier_from_endpoints_matches_start_end() {
+        let start = Vec3::new(1.0, 2.0, 3.0);
+        let end = Vec3::new(7.0, 8.0, 9.0);
+        let b = CubicBezier::from_endpoints(start, end);
+        let p0 = b.position(0.0);
+        let p1 = b.position(1.0);
+        assert!(p0.distance(start) < 0.01);
+        assert!(p1.distance(end) < 0.01);
+    }
+
+    #[test]
+    fn test_spline_empty_returns_zero() {
+        let spline = BezierSpline::new();
+        assert_eq!(spline.segment_count(), 0);
+        let pos = spline.position(0.5);
+        assert_eq!(pos, Vec3::ZERO);
+    }
+
+    #[test]
+    fn test_spline_empty_velocity_returns_zero() {
+        let spline = BezierSpline::new();
+        let vel = spline.velocity(0.5);
+        assert_eq!(vel, Vec3::ZERO);
+    }
+
+    #[test]
+    fn test_spline_max_segments() {
+        let mut spline = BezierSpline::new();
+        // Fill all 8 slots
+        for i in 0..8 {
+            let start = Vec3::new(i as f32, 0.0, 0.0);
+            let end = Vec3::new(i as f32 + 1.0, 0.0, 0.0);
+            let ok = spline.add_segment(CubicBezier::from_endpoints(start, end));
+            assert!(ok, "should accept segment {i}");
+        }
+        assert_eq!(spline.segment_count(), 8);
+        // 9th segment should be rejected
+        let rejected = spline.add_segment(CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0)));
+        assert!(!rejected, "should reject 9th segment");
+        assert_eq!(spline.segment_count(), 8);
+    }
+
+    #[test]
+    fn test_spline_arc_length_positive() {
+        let mut spline = BezierSpline::new();
+        spline.add_segment(CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(3.0, 4.0, 0.0)));
+        let len = spline.arc_length();
+        assert!(len > 4.0, "arc length should be > 4, got {len}");
+    }
+
+    #[test]
+    fn test_bezier_arc_length_single_subdivision() {
+        // arc_length with 1 subdivision just measures chord length
+        let b = CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
+        let len = b.arc_length(1);
+        assert!(len > 0.0);
+    }
 }

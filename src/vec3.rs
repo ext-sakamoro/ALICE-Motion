@@ -191,4 +191,170 @@ mod tests {
         let n = v.normalize();
         assert!((n.length() - 1.0).abs() < 0.05);
     }
+
+    // --- Additional tests ---
+
+    #[test]
+    fn test_zero_constant() {
+        let z = Vec3::ZERO;
+        assert_eq!(z.x, 0.0);
+        assert_eq!(z.y, 0.0);
+        assert_eq!(z.z, 0.0);
+    }
+
+    #[test]
+    fn test_from_array_roundtrip() {
+        let arr = [1.5f32, 2.5, 3.5];
+        let v = Vec3::from_array(arr);
+        let out = v.to_array();
+        assert_eq!(out, arr);
+    }
+
+    #[test]
+    fn test_add() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(4.0, 5.0, 6.0);
+        let c = a + b;
+        assert_eq!(c.x, 5.0);
+        assert_eq!(c.y, 7.0);
+        assert_eq!(c.z, 9.0);
+    }
+
+    #[test]
+    fn test_sub() {
+        let a = Vec3::new(5.0, 7.0, 9.0);
+        let b = Vec3::new(1.0, 2.0, 3.0);
+        let c = a - b;
+        assert_eq!(c.x, 4.0);
+        assert_eq!(c.y, 5.0);
+        assert_eq!(c.z, 6.0);
+    }
+
+    #[test]
+    fn test_mul_scalar() {
+        let v = Vec3::new(1.0, 2.0, 3.0);
+        let scaled = v * 3.0;
+        assert_eq!(scaled.x, 3.0);
+        assert_eq!(scaled.y, 6.0);
+        assert_eq!(scaled.z, 9.0);
+    }
+
+    #[test]
+    fn test_neg() {
+        let v = Vec3::new(1.0, -2.0, 3.0);
+        let n = -v;
+        assert_eq!(n.x, -1.0);
+        assert_eq!(n.y, 2.0);
+        assert_eq!(n.z, -3.0);
+    }
+
+    #[test]
+    fn test_length_squared() {
+        let v = Vec3::new(1.0, 2.0, 2.0);
+        // 1 + 4 + 4 = 9
+        assert!((v.length_squared() - 9.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_distance() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(3.0, 4.0, 0.0);
+        assert!((a.distance(b) - 5.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_distance_squared() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(1.0, 1.0, 1.0);
+        assert!((a.distance_squared(b) - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_normalize_zero_vector() {
+        // Normalizing the zero vector should return ZERO, not NaN
+        let v = Vec3::ZERO;
+        let n = v.normalize();
+        assert_eq!(n.x, 0.0);
+        assert_eq!(n.y, 0.0);
+        assert_eq!(n.z, 0.0);
+    }
+
+    #[test]
+    fn test_cross_anticommutative() {
+        // a x b == -(b x a)
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(4.0, 5.0, 6.0);
+        let ab = a.cross(b);
+        let ba = b.cross(a);
+        assert!((ab.x + ba.x).abs() < 1e-5);
+        assert!((ab.y + ba.y).abs() < 1e-5);
+        assert!((ab.z + ba.z).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_lerp_at_zero() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(10.0, 20.0, 30.0);
+        let result = a.lerp(b, 0.0);
+        assert!((result.x - a.x).abs() < 1e-6);
+        assert!((result.y - a.y).abs() < 1e-6);
+        assert!((result.z - a.z).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_lerp_at_one() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(10.0, 20.0, 30.0);
+        let result = a.lerp(b, 1.0);
+        assert!((result.x - b.x).abs() < 1e-5);
+        assert!((result.y - b.y).abs() < 1e-5);
+        assert!((result.z - b.z).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_dot_self_equals_length_squared() {
+        let v = Vec3::new(2.0, 3.0, 6.0);
+        let dot_self = v.dot(v);
+        let len_sq = v.length_squared();
+        assert!((dot_self - len_sq).abs() < 1e-6);
+    }
+
+    // FNV-1a hash verification: hash a Vec3's bit-representation
+    fn fnv1a_vec3(v: Vec3) -> u64 {
+        let bytes = [
+            v.x.to_bits().to_le_bytes(),
+            v.y.to_bits().to_le_bytes(),
+            v.z.to_bits().to_le_bytes(),
+        ];
+        let mut h: u64 = 0xcbf29ce484222325;
+        for chunk in &bytes {
+            for &b in chunk {
+                h ^= b as u64;
+                h = h.wrapping_mul(0x100000001b3);
+            }
+        }
+        h
+    }
+
+    #[test]
+    fn test_fnv1a_hash_nonzero() {
+        let v = Vec3::new(1.0, 2.0, 3.0);
+        let h = fnv1a_vec3(v);
+        assert_ne!(h, 0, "FNV-1a hash must not be zero for non-trivial input");
+    }
+
+    #[test]
+    fn test_fnv1a_hash_deterministic() {
+        let v = Vec3::new(3.14, 2.71, 1.41);
+        let h1 = fnv1a_vec3(v);
+        let h2 = fnv1a_vec3(v);
+        assert_eq!(h1, h2, "FNV-1a hash must be deterministic");
+    }
+
+    #[test]
+    fn test_fnv1a_hash_differs_per_vector() {
+        let a = Vec3::new(1.0, 0.0, 0.0);
+        let b = Vec3::new(0.0, 1.0, 0.0);
+        assert_ne!(fnv1a_vec3(a), fnv1a_vec3(b));
+    }
 }

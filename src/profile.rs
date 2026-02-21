@@ -269,4 +269,131 @@ mod tests {
         assert!((smoothstep(1.0) - 1.0).abs() < 0.01);
         assert!((smoothstep(0.5) - 0.5).abs() < 0.01);
     }
+
+    // --- Additional tests ---
+
+    #[test]
+    fn test_trapezoidal_duration_positive() {
+        let prof = TrapezoidalProfile::new(1.0, 2.0, 5.0);
+        assert!(prof.duration() > 0.0);
+    }
+
+    #[test]
+    fn test_trapezoidal_acceleration_phases() {
+        // Full trapezoidal: v_max=2, a_max=4, distance=20
+        // t_accel = v_max/a_max = 0.5s
+        let prof = TrapezoidalProfile::new(2.0, 4.0, 20.0);
+        // During acceleration (early): accel should be positive
+        let a_early = prof.acceleration_at(0.1);
+        assert!(a_early > 0.0, "acceleration phase should be positive, got {a_early}");
+        // At end: accel should be negative (decelerating)
+        let dur = prof.duration();
+        let a_late = prof.acceleration_at(dur - 0.1);
+        assert!(a_late < 0.0, "deceleration phase should be negative, got {a_late}");
+    }
+
+    #[test]
+    fn test_trapezoidal_cruise_acceleration_zero() {
+        // In the cruise phase, acceleration should be 0
+        let prof = TrapezoidalProfile::new(2.0, 4.0, 20.0);
+        // Cruise is in the middle
+        let mid_time = prof.duration() / 2.0;
+        let a_cruise = prof.acceleration_at(mid_time);
+        assert!(a_cruise.abs() < 1e-5, "cruise acceleration should be ~0, got {a_cruise}");
+    }
+
+    #[test]
+    fn test_trapezoidal_position_monotone() {
+        // Position should be non-decreasing over time
+        let prof = TrapezoidalProfile::new(1.0, 2.0, 10.0);
+        let mut prev = prof.position_at(0.0);
+        let n = 100;
+        for i in 1..=n {
+            let t = prof.duration() * i as f32 / n as f32;
+            let curr = prof.position_at(t);
+            assert!(curr >= prev - 1e-5, "position must be non-decreasing at t={t}: {curr} < {prev}");
+            prev = curr;
+        }
+    }
+
+    #[test]
+    fn test_trapezoidal_velocity_nonnegative() {
+        // Velocity must be >= 0 throughout
+        let prof = TrapezoidalProfile::new(2.0, 4.0, 20.0);
+        let n = 50;
+        for i in 0..=n {
+            let t = prof.duration() * i as f32 / n as f32;
+            let v = prof.velocity_at(t);
+            assert!(v >= -1e-5, "velocity must be >= 0 at t={t}: {v}");
+        }
+    }
+
+    #[test]
+    fn test_trapezoidal_fields_accessible() {
+        let prof = TrapezoidalProfile::new(3.0, 6.0, 30.0);
+        assert_eq!(prof.v_max, 3.0);
+        assert_eq!(prof.a_max, 6.0);
+        assert_eq!(prof.distance, 30.0);
+    }
+
+    #[test]
+    fn test_scurve_fields_accessible() {
+        let prof = SCurveProfile::new(3.0, 6.0, 30.0, 25.0);
+        assert_eq!(prof.v_max, 3.0);
+        assert_eq!(prof.a_max, 6.0);
+        assert_eq!(prof.j_max, 30.0);
+        assert_eq!(prof.distance, 25.0);
+    }
+
+    #[test]
+    fn test_scurve_duration_positive() {
+        let prof = SCurveProfile::new(1.0, 2.0, 10.0, 15.0);
+        assert!(prof.duration() > 0.0);
+    }
+
+    #[test]
+    fn test_scurve_position_monotone() {
+        // S-curve position should be non-decreasing
+        let prof = SCurveProfile::new(2.0, 4.0, 20.0, 20.0);
+        let mut prev = prof.position_at(0.0);
+        let n = 100;
+        for i in 1..=n {
+            let t = prof.duration() * i as f32 / n as f32;
+            let curr = prof.position_at(t);
+            assert!(curr >= prev - 1e-4, "S-curve position must be non-decreasing at t={t}");
+            prev = curr;
+        }
+    }
+
+    #[test]
+    fn test_smoothstep_clamped_below() {
+        // smoothstep(-1.0) should clamp to 0.0
+        assert!((smoothstep(-1.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_smoothstep_clamped_above() {
+        // smoothstep(2.0) should clamp to 1.0
+        assert!((smoothstep(2.0) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_smoothstep_symmetry() {
+        // smoothstep(x) + smoothstep(1-x) == 1  (point symmetry around 0.5)
+        for i in 0..=10 {
+            let x = i as f32 / 10.0;
+            let sum = smoothstep(x) + smoothstep(1.0 - x);
+            assert!((sum - 1.0).abs() < 1e-5, "smoothstep symmetry violated at x={x}: sum={sum}");
+        }
+    }
+
+    #[test]
+    fn test_trapezoidal_short_distance_triangle_profile() {
+        // When 2*d_accel >= distance, it becomes triangle profile
+        // v_max=100, a_max=1, distance=0.1 → definitely a triangle
+        let prof = TrapezoidalProfile::new(100.0, 1.0, 0.1);
+        // Triangle: t_cruise == 0, so velocity peaks below v_max
+        // The peak velocity = a_max * t_half; position at duration ≈ distance
+        assert!((prof.position_at(prof.duration()) - 0.1).abs() < 0.05);
+    }
 }
