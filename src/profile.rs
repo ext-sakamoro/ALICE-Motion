@@ -32,6 +32,9 @@ pub struct TrapezoidalProfile {
     // Computed times
     t_accel: f32,
     t_cruise: f32,
+    /// Deceleration phase duration (mirrors t_accel for symmetric profiles).
+    /// Stored explicitly for future asymmetric decel support.
+    #[allow(dead_code)]
     t_decel: f32,
     total_time: f32,
 }
@@ -127,7 +130,10 @@ pub struct SCurveProfile {
     pub j_max: f32,
     /// Total path distance
     pub distance: f32,
-    /// Time to reach a_max (jerk phase)
+    /// Time to reach a_max (jerk phase).
+    /// Reserved for the full 7-phase S-curve implementation;
+    /// currently the simplified smoothstep approximation is used instead.
+    #[allow(dead_code)]
     t_jerk: f32,
     /// Total duration
     total_time: f32,
