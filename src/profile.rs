@@ -1,7 +1,7 @@
 //! Velocity profiles — timing laws for trajectory execution
 //!
 //! Defines how fast to traverse a path: trapezoidal, S-curve, quintic.
-//! Maps normalized path parameter s ∈ [0,1] to time t.
+//! Maps normalized path parameter s ∈ \[0,1\] to time t.
 //!
 //! Author: Moroya Sakamoto
 
@@ -253,7 +253,10 @@ mod tests {
         let prof = SCurveProfile::new(1.0, 2.0, 10.0, 10.0);
         assert!((prof.position_at(0.0)).abs() < 0.01);
         let end_pos = prof.position_at(prof.duration());
-        assert!((end_pos - 10.0).abs() < 0.5, "end pos should be ~10, got {end_pos}");
+        assert!(
+            (end_pos - 10.0).abs() < 0.5,
+            "end pos should be ~10, got {end_pos}"
+        );
     }
 
     #[test]
@@ -285,11 +288,17 @@ mod tests {
         let prof = TrapezoidalProfile::new(2.0, 4.0, 20.0);
         // During acceleration (early): accel should be positive
         let a_early = prof.acceleration_at(0.1);
-        assert!(a_early > 0.0, "acceleration phase should be positive, got {a_early}");
+        assert!(
+            a_early > 0.0,
+            "acceleration phase should be positive, got {a_early}"
+        );
         // At end: accel should be negative (decelerating)
         let dur = prof.duration();
         let a_late = prof.acceleration_at(dur - 0.1);
-        assert!(a_late < 0.0, "deceleration phase should be negative, got {a_late}");
+        assert!(
+            a_late < 0.0,
+            "deceleration phase should be negative, got {a_late}"
+        );
     }
 
     #[test]
@@ -299,7 +308,10 @@ mod tests {
         // Cruise is in the middle
         let mid_time = prof.duration() / 2.0;
         let a_cruise = prof.acceleration_at(mid_time);
-        assert!(a_cruise.abs() < 1e-5, "cruise acceleration should be ~0, got {a_cruise}");
+        assert!(
+            a_cruise.abs() < 1e-5,
+            "cruise acceleration should be ~0, got {a_cruise}"
+        );
     }
 
     #[test]
@@ -311,7 +323,10 @@ mod tests {
         for i in 1..=n {
             let t = prof.duration() * i as f32 / n as f32;
             let curr = prof.position_at(t);
-            assert!(curr >= prev - 1e-5, "position must be non-decreasing at t={t}: {curr} < {prev}");
+            assert!(
+                curr >= prev - 1e-5,
+                "position must be non-decreasing at t={t}: {curr} < {prev}"
+            );
             prev = curr;
         }
     }
@@ -360,7 +375,10 @@ mod tests {
         for i in 1..=n {
             let t = prof.duration() * i as f32 / n as f32;
             let curr = prof.position_at(t);
-            assert!(curr >= prev - 1e-4, "S-curve position must be non-decreasing at t={t}");
+            assert!(
+                curr >= prev - 1e-4,
+                "S-curve position must be non-decreasing at t={t}"
+            );
             prev = curr;
         }
     }
@@ -383,7 +401,10 @@ mod tests {
         for i in 0..=10 {
             let x = i as f32 / 10.0;
             let sum = smoothstep(x) + smoothstep(1.0 - x);
-            assert!((sum - 1.0).abs() < 1e-5, "smoothstep symmetry violated at x={x}: sum={sum}");
+            assert!(
+                (sum - 1.0).abs() < 1e-5,
+                "smoothstep symmetry violated at x={x}: sum={sum}"
+            );
         }
     }
 

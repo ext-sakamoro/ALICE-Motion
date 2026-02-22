@@ -7,10 +7,11 @@
 
 use crate::bezier::CubicBezier;
 use crate::nurbs::NurbsCurve;
-use crate::profile::{VelocityProfile, TrapezoidalProfile, SCurveProfile};
+use crate::profile::{SCurveProfile, TrapezoidalProfile, VelocityProfile};
 use crate::vec3::Vec3;
 
 /// Path representation
+#[allow(clippy::large_enum_variant)]
 pub enum Path {
     Bezier(CubicBezier),
     Nurbs(NurbsCurve),
@@ -29,11 +30,7 @@ enum ProfileKind {
 
 impl MotionPlan {
     /// Create from Bezier + trapezoidal profile
-    pub fn bezier_trapezoidal(
-        curve: CubicBezier,
-        v_max: f32,
-        a_max: f32,
-    ) -> Self {
+    pub fn bezier_trapezoidal(curve: CubicBezier, v_max: f32, a_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
             path: Path::Bezier(curve),
@@ -42,12 +39,7 @@ impl MotionPlan {
     }
 
     /// Create from NURBS + S-curve profile
-    pub fn nurbs_scurve(
-        curve: NurbsCurve,
-        v_max: f32,
-        a_max: f32,
-        j_max: f32,
-    ) -> Self {
+    pub fn nurbs_scurve(curve: NurbsCurve, v_max: f32, a_max: f32, j_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
             path: Path::Nurbs(curve),
@@ -71,7 +63,11 @@ impl MotionPlan {
         const INV_H: f32 = 1.0 / 0.0005;
         let p0 = self.position((t - H).max(0.0));
         let p1 = self.position((t + H).min(self.duration()));
-        let inv_dt = if t < H || t > self.duration() - H { INV_H } else { INV_2H };
+        let inv_dt = if t < H || t > self.duration() - H {
+            INV_H
+        } else {
+            INV_2H
+        };
         (p1 - p0) * inv_dt
     }
 
@@ -82,7 +78,11 @@ impl MotionPlan {
         const INV_H: f32 = 1.0 / 0.001;
         let v0 = self.velocity((t - H).max(0.0));
         let v1 = self.velocity((t + H).min(self.duration()));
-        let inv_dt = if t < H || t > self.duration() - H { INV_H } else { INV_2H };
+        let inv_dt = if t < H || t > self.duration() - H {
+            INV_H
+        } else {
+            INV_2H
+        };
         (v1 - v0) * inv_dt
     }
 
@@ -100,13 +100,17 @@ impl MotionPlan {
         let dist = match &self.profile {
             ProfileKind::Trapezoidal(p) => {
                 let total = p.distance;
-                if total < 1e-10 { return 0.0; }
+                if total < 1e-10 {
+                    return 0.0;
+                }
                 let inv_total = 1.0 / total;
                 p.position_at(t) * inv_total
             }
             ProfileKind::SCurve(p) => {
                 let total = p.distance;
-                if total < 1e-10 { return 0.0; }
+                if total < 1e-10 {
+                    return 0.0;
+                }
                 let inv_total = 1.0 / total;
                 p.position_at(t) * inv_total
             }
@@ -126,10 +130,8 @@ mod tests {
 
     #[test]
     fn test_bezier_plan() {
-        let curve = CubicBezier::from_endpoints(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(10.0, 0.0, 0.0),
-        );
+        let curve =
+            CubicBezier::from_endpoints(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 0.0, 0.0));
         let plan = MotionPlan::bezier_trapezoidal(curve, 2.0, 4.0);
 
         let start = plan.position(0.0);
@@ -157,10 +159,7 @@ mod tests {
 
     #[test]
     fn test_plan_velocity() {
-        let curve = CubicBezier::from_endpoints(
-            Vec3::ZERO,
-            Vec3::new(10.0, 0.0, 0.0),
-        );
+        let curve = CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
         let plan = MotionPlan::bezier_trapezoidal(curve, 2.0, 4.0);
 
         // Mid-motion should have positive speed
@@ -171,10 +170,7 @@ mod tests {
 
     #[test]
     fn test_plan_duration_positive() {
-        let curve = CubicBezier::from_endpoints(
-            Vec3::ZERO,
-            Vec3::new(1.0, 1.0, 1.0),
-        );
+        let curve = CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(1.0, 1.0, 1.0));
         let plan = MotionPlan::bezier_trapezoidal(curve, 0.5, 1.0);
         assert!(plan.duration() > 0.0);
     }
@@ -189,8 +185,10 @@ mod tests {
         for i in 0..=n {
             let t = plan.duration() * i as f32 / n as f32;
             let p = plan.position(t);
-            assert!(p.x.is_finite() && p.y.is_finite() && p.z.is_finite(),
-                "position must be finite at t={t}");
+            assert!(
+                p.x.is_finite() && p.y.is_finite() && p.z.is_finite(),
+                "position must be finite at t={t}"
+            );
         }
     }
 
@@ -212,8 +210,10 @@ mod tests {
         let plan = MotionPlan::bezier_trapezoidal(curve, 1.0, 2.0);
         let mid = plan.duration() / 2.0;
         let a = plan.acceleration(mid);
-        assert!(a.x.is_finite() && a.y.is_finite() && a.z.is_finite(),
-            "acceleration must be finite");
+        assert!(
+            a.x.is_finite() && a.y.is_finite() && a.z.is_finite(),
+            "acceleration must be finite"
+        );
     }
 
     #[test]
@@ -270,7 +270,9 @@ mod tests {
         let plan_fast = MotionPlan::nurbs_scurve(curve_b, 5.0, 10.0, 50.0);
         assert!(
             plan_fast.duration() < plan_slow.duration(),
-            "faster plan should be shorter: {} vs {}", plan_fast.duration(), plan_slow.duration()
+            "faster plan should be shorter: {} vs {}",
+            plan_fast.duration(),
+            plan_slow.duration()
         );
     }
 }

@@ -111,6 +111,12 @@ pub struct BezierSpline {
     count: usize,
 }
 
+impl Default for BezierSpline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BezierSpline {
     pub fn new() -> Self {
         Self {
@@ -276,8 +282,16 @@ mod tests {
         for i in 0..=10 {
             let t = i as f32 / 10.0;
             let p = b.position(t);
-            assert!(p.x >= -0.01 && p.x <= 4.01, "x out of convex hull at t={t}: {}", p.x);
-            assert!(p.y >= -0.01 && p.y <= 3.01, "y out of convex hull at t={t}: {}", p.y);
+            assert!(
+                p.x >= -0.01 && p.x <= 4.01,
+                "x out of convex hull at t={t}: {}",
+                p.x
+            );
+            assert!(
+                p.y >= -0.01 && p.y <= 3.01,
+                "y out of convex hull at t={t}: {}",
+                p.y
+            );
         }
     }
 
@@ -293,8 +307,14 @@ mod tests {
         for i in 0..=10 {
             let t = i as f32 / 10.0;
             let v = b.velocity(t);
-            assert!(v.y.abs() < 1e-5, "y-velocity should be 0 for collinear points at t={t}");
-            assert!(v.z.abs() < 1e-5, "z-velocity should be 0 for collinear points at t={t}");
+            assert!(
+                v.y.abs() < 1e-5,
+                "y-velocity should be 0 for collinear points at t={t}"
+            );
+            assert!(
+                v.z.abs() < 1e-5,
+                "z-velocity should be 0 for collinear points at t={t}"
+            );
         }
     }
 
@@ -314,7 +334,9 @@ mod tests {
             let junction_right = right.position(0.0);
             assert!(
                 junction_left.distance(junction_right) < 1e-4,
-                "split discontinuity at t={t}: {:?} vs {:?}", junction_left, junction_right
+                "split discontinuity at t={t}: {:?} vs {:?}",
+                junction_left,
+                junction_right
             );
         }
     }
@@ -357,7 +379,10 @@ mod tests {
         }
         assert_eq!(spline.segment_count(), 8);
         // 9th segment should be rejected
-        let rejected = spline.add_segment(CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0)));
+        let rejected = spline.add_segment(CubicBezier::from_endpoints(
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+        ));
         assert!(!rejected, "should reject 9th segment");
         assert_eq!(spline.segment_count(), 8);
     }
@@ -365,7 +390,10 @@ mod tests {
     #[test]
     fn test_spline_arc_length_positive() {
         let mut spline = BezierSpline::new();
-        spline.add_segment(CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(3.0, 4.0, 0.0)));
+        spline.add_segment(CubicBezier::from_endpoints(
+            Vec3::ZERO,
+            Vec3::new(3.0, 4.0, 0.0),
+        ));
         let len = spline.arc_length();
         assert!(len > 4.0, "arc length should be > 4, got {len}");
     }

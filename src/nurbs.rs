@@ -56,8 +56,7 @@ impl NurbsCurve {
             return self.points[self.n_points - 1];
         }
 
-        let u_mapped = self.knots[p]
-            + u * (self.knots[self.n_knots - p - 1] - self.knots[p]);
+        let u_mapped = self.knots[p] + u * (self.knots[self.n_knots - p - 1] - self.knots[p]);
 
         let mut numerator = Vec3::ZERO;
         let mut denominator = 0.0f32;
@@ -173,13 +172,13 @@ impl NurbsBuilder {
 
         // Generate clamped uniform knot vector
         let mut knots = [0.0f32; MAX_KNOTS];
-        for i in 0..n_knots {
+        for (i, knot) in knots[..n_knots].iter_mut().enumerate() {
             if i <= p {
-                knots[i] = 0.0;
+                *knot = 0.0;
             } else if i >= n {
-                knots[i] = 1.0;
+                *knot = 1.0;
             } else {
-                knots[i] = (i - p) as f32 / (n - p) as f32;
+                *knot = (i - p) as f32 / (n - p) as f32;
             }
         }
 
@@ -250,7 +249,10 @@ mod tests {
             .build();
 
         let len = curve.arc_length(100);
-        assert!((len - 10.0).abs() < 1.0, "straight line should be ~10, got {len}");
+        assert!(
+            (len - 10.0).abs() < 1.0,
+            "straight line should be ~10, got {len}"
+        );
     }
 
     #[test]
@@ -265,11 +267,16 @@ mod tests {
         let mid = curve.position(0.5);
         // For a quarter circle, midpoint should be at ~45° → (cos45, sin45) ≈ (0.707, 0.707)
         let r = fast_sqrt_test(mid.x * mid.x + mid.y * mid.y);
-        assert!((r - 1.0).abs() < 0.2, "weighted curve should approximate circle, r={r}");
+        assert!(
+            (r - 1.0).abs() < 0.2,
+            "weighted curve should approximate circle, r={r}"
+        );
     }
 
     fn fast_sqrt_test(x: f32) -> f32 {
-        if x <= 0.0 { return 0.0; }
+        if x <= 0.0 {
+            return 0.0;
+        }
         let i = f32::to_bits(x);
         let i = 0x1fbd1df5 + (i >> 1);
         let y = f32::from_bits(i);
@@ -311,7 +318,11 @@ mod tests {
         for i in 0..=20 {
             let u = i as f32 / 20.0;
             let p = curve.position(u);
-            assert!(p.x >= -0.01 && p.x <= 3.01, "x out of range at u={u}: {}", p.x);
+            assert!(
+                p.x >= -0.01 && p.x <= 3.01,
+                "x out of range at u={u}: {}",
+                p.x
+            );
         }
     }
 
@@ -365,7 +376,12 @@ mod tests {
             .build();
         let short_len = short_curve.arc_length(50);
         let long_len = long_curve.arc_length(50);
-        assert!(long_len > short_len, "longer span must yield longer arc, {} vs {}", long_len, short_len);
+        assert!(
+            long_len > short_len,
+            "longer span must yield longer arc, {} vs {}",
+            long_len,
+            short_len
+        );
     }
 
     #[test]
