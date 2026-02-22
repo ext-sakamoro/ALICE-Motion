@@ -5,7 +5,7 @@
 > "A robot arm doesn't need 10,000 coordinates. It needs one curve."
 
 ```
-Traditional:  1000-point trajectory = 12,000 bytes (xyz × f32 × 1000)
+Traditional:  1000-point trajectory = 12,000 bytes (xyz x f32 x 1000)
 ALICE-Motion: Same trajectory       = 48 bytes (NURBS degree + knots + control points)
 ```
 
@@ -20,32 +20,34 @@ This is raw data masquerading as instructions.
 Instead of transmitting coordinate arrays, transmit **the mathematical description of the trajectory**:
 
 - **Path** = NURBS/Bezier curve coefficients (compact parametric form)
-- **Timing** = velocity profile as a differential equation (trapezoidal/S-curve/quintic)
-- **Constraints** = max acceleration, jerk limits, obstacle avoidance zones as SDF
+- **Timing** = velocity profile as a timing law (trapezoidal or S-curve approximation)
 
 The actuator JIT-evaluates the curve at arbitrary precision, interpolating positions at its own control frequency — decoupled from the sender's update rate.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         ALICE-Motion                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌───────────────┐   ┌───────────────┐   ┌───────────────────────┐  │
-│  │ Trajectory     │──▶│ Time Profiler │──▶│ Actuator Interface    │  │
-│  │ Compiler       │   │ (velocity/    │   │ (step/servo/BLDC)     │  │
-│  │ NURBS/Bezier   │   │  accel/jerk)  │   │                       │  │
-│  └───────────────┘   └───────────────┘   └───────────────────────┘  │
-│          ▲                    ▲                      │               │
-│          │                    │                      ▼               │
-│  ┌───────────────┐   ┌───────────────┐   ┌───────────────────────┐  │
-│  │ Path Planner  │   │ Constraint    │   │ Feedback Controller   │  │
-│  │ (A* on SDF    │   │ Solver        │   │ (PID / model-based)   │  │
-│  │  obstacle map)│   │ (jerk ≤ J_max)│   │                       │  │
-│  └───────────────┘   └───────────────┘   └───────────────────────┘  │
-│                                                                       │
-└─────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                        ALICE-Motion                         |
++-------------------------------------------------------------+
+|                                                             |
+|  +-----------------+   +------------------+                |
+|  | Trajectory      |-->| Time Profiler    |                |
+|  | (NURBS/Bezier)  |   | (Trapezoidal /   |                |
+|  |                 |   |  S-Curve approx) |                |
+|  +-----------------+   +------------------+                |
+|          |                      |                          |
+|          +----------+-----------+                          |
+|                     |                                      |
+|              +--------------+                              |
+|              |  MotionPlan  |                              |
+|              | .position(t) |                              |
+|              | .velocity(t) |                              |
+|              | .acceleration(t)                            |
+|              | .duration()  |                              |
+|              +--------------+                              |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Trajectory Representations
@@ -55,154 +57,156 @@ The actuator JIT-evaluates the curve at arbitrary precision, interpolating posit
 Non-Uniform Rational B-Spline — the industry standard for smooth curves with exact conics.
 
 ```
-┌─────────────────────────────────────────────┐
-│  NurbsTrajectory                             │
-│  ├─ degree: u8          (typically 3-5)     │
-│  ├─ n_control: u8       (number of points)  │
-│  ├─ knots: [f32; n+p+1] (knot vector)      │
-│  ├─ points: [Vec3; n]   (control points)    │
-│  └─ weights: [f32; n]   (rationality)       │
-│                                               │
-│  Total: ~48 bytes for a typical 6-DOF move  │
-│  vs 12,000 bytes as waypoint array           │
-│  Ratio: 250x compression                     │
-└─────────────────────────────────────────────┘
++---------------------------------------------+
+|  NurbsCurve                                  |
+|  |- degree: u8          (typically 2-3)     |
+|  |- n_points: usize     (up to 16 points)   |
+|  |- knots: [f32; 24]    (knot vector)       |
+|  |- points: [Vec3; 16]  (control points)    |
+|  |- weights: [f32; 16]  (rationality)       |
+|                                               |
+|  Builder API:                                 |
+|    NurbsCurve::builder(degree)                |
+|      .add_point(Vec3)                         |
+|      .add_weighted_point(Vec3, weight)        |
+|      .build()                                 |
++---------------------------------------------+
 ```
 
-### Bezier Spline (Lightweight)
+### Cubic Bezier (Lightweight)
 
-Cubic Bezier segments chained end-to-end. Simpler than NURBS, sufficient for most paths.
-
-```
-Segment: 4 control points × 3 axes × f32 = 48 bytes
-Typical path: 3-5 segments = 144-240 bytes
-```
-
-### Quintic Polynomial (Time-Optimal)
-
-5th-degree polynomial in time — guarantees continuous position, velocity, acceleration, and jerk.
+Cubic Bezier segments chained end-to-end via `BezierSpline`. Simpler than NURBS, sufficient for most paths.
 
 ```
-q(t) = a₀ + a₁t + a₂t² + a₃t³ + a₄t⁴ + a₅t⁵
-Coefficients: 6 × f32 per axis × 3 axes = 72 bytes per segment
+CubicBezier: 4 control points x 3 axes x f32 = 48 bytes per segment
+BezierSpline: up to 8 chained segments (384 bytes max)
+
+Constructors:
+  CubicBezier::new(p0, p1, p2, p3)
+  CubicBezier::from_endpoints(start, end)   // auto control points
 ```
+
+Both curve types expose:
+- `.position(t)` — point on curve at parameter t in [0, 1]
+- `.velocity(t)` — first derivative (tangent direction)
+- `.arc_length(subdivisions)` — approximate arc length by chord summation
+
+`CubicBezier` additionally exposes `.acceleration(t)` and `.split(t)` (de Casteljau subdivision).
 
 ## Velocity Profiles
 
-| Profile | Params | Continuity | Use Case |
-|---------|--------|-----------|----------|
-| Trapezoidal | v_max, a_max | C⁰ (velocity discontinuity) | Simple pick-and-place |
-| S-Curve | v_max, a_max, j_max | C¹ (smooth acceleration) | Industrial robot arms |
-| Quintic | boundary conditions | C² (smooth jerk) | Precision assembly |
-| Time-Optimal | torque limits per joint | C¹ + torque-bounded | Racing drones |
+Two profiles are implemented. Both map a scalar distance along the path to a time coordinate.
 
-## Packet Format
+| Profile | Parameters | Acceleration | Notes |
+|---------|-----------|--------------|-------|
+| `TrapezoidalProfile` | v_max, a_max, distance | Piecewise constant | Accelerate -> cruise -> decelerate. Falls back to triangle profile when distance is too short to reach v_max. |
+| `SCurveProfile` | v_max, a_max, j_max, distance | Smoothed via smoothstep | Simplified approximation using the cubic smoothstep function `x * x * (3 - 2x)`. Velocity and acceleration are computed by finite differences. Not a full 7-phase jerk-continuous profile. |
 
+Both implement the `VelocityProfile` trait:
+
+```rust
+pub trait VelocityProfile {
+    fn position_at(&self, t: f32) -> f32;
+    fn velocity_at(&self, t: f32) -> f32;
+    fn acceleration_at(&self, t: f32) -> f32;
+    fn duration(&self) -> f32;
+}
 ```
-┌──────────────────────────────────────────────┐
-│  MotionPacket (variable, typically 48-256 B) │
-│  ├─ magic: [u8; 4]    = "AMOT"             │
-│  ├─ type: u8           = NURBS/Bezier/Poly  │
-│  ├─ axes: u8           = 3 (xyz) or 6 (xyzrpy) │
-│  ├─ duration_ms: u32   = total move time    │
-│  ├─ profile: u8        = Trap/S-Curve/Quint │
-│  ├─ constraints: [f32; 3] = v/a/j limits    │
-│  └─ curve_data: [u8; N]  = coefficients     │
-└──────────────────────────────────────────────┘
-```
-
-### Size Comparison
-
-| Motion | Waypoint Array | ALICE-Motion | Ratio |
-|--------|---------------|-------------|-------|
-| Linear move (1m) | 4,000 B (1000 pts) | **24 bytes** (start + end + profile) | **167x** |
-| Arc move (90°) | 12,000 B (1000 pts) | **48 bytes** (NURBS arc) | **250x** |
-| Complex path (S-curve) | 48,000 B (4000 pts) | **192 bytes** (4 NURBS segments) | **250x** |
-| 6-DOF robot motion | 96,000 B (4000 × 6) | **384 bytes** (6-axis NURBS) | **250x** |
-| Drone flight plan (10 min) | 7.2 MB (100Hz × 6DOF) | **2 KB** (spline + waypoints) | **3,600x** |
 
 ## API Design
 
 ```rust
 use alice_motion::{
-    Trajectory, NurbsCurve, VelocityProfile,
-    MotionPlanner, Actuator,
+    Vec3, CubicBezier, NurbsCurve,
+    planner::MotionPlan,
 };
 
-// Define trajectory (48 bytes)
-let trajectory = NurbsCurve::new()
-    .degree(3)
-    .add_point([0.0, 0.0, 0.0])    // start
-    .add_point([0.1, 0.0, 0.05])   // lift
-    .add_point([0.3, 0.2, 0.05])   // cruise
-    .add_point([0.5, 0.4, 0.0])    // place
-    .build();
+// --- Option 1: Bezier path + trapezoidal profile ---
 
-// Define velocity profile
-let profile = VelocityProfile::s_curve(
-    v_max: 0.5,      // m/s
-    a_max: 2.0,       // m/s²
-    j_max: 10.0,      // m/s³
+let curve = CubicBezier::from_endpoints(
+    Vec3::new(0.0, 0.0, 0.0),
+    Vec3::new(0.5, 0.4, 0.0),
 );
 
-// Compile motion plan
-let plan = MotionPlanner::compile(&trajectory, &profile)?;
+let plan = MotionPlan::bezier_trapezoidal(
+    curve,
+    0.5,   // v_max (units/s)
+    2.0,   // a_max (units/s^2)
+);
 
 // Evaluate at any time t (JIT interpolation)
-let pos = plan.position(0.5);  // halfway through
+let pos = plan.position(0.5);
 let vel = plan.velocity(0.5);
 let acc = plan.acceleration(0.5);
+let dur = plan.duration();
 
-// Serialize for transmission (48 bytes)
-let packet = plan.to_bytes();
+// --- Option 2: NURBS path + S-curve approximation ---
 
-// On actuator side: reconstruct and execute
-let plan = MotionPlan::from_bytes(&packet)?;
-for t in (0.0..plan.duration()).step_by(0.001) { // 1kHz control loop
+let curve = NurbsCurve::builder(3)
+    .add_point(Vec3::new(0.0, 0.0, 0.0))
+    .add_point(Vec3::new(0.1, 0.0, 0.05))
+    .add_point(Vec3::new(0.3, 0.2, 0.05))
+    .add_point(Vec3::new(0.5, 0.4, 0.0))
+    .build();
+
+let plan = MotionPlan::nurbs_scurve(
+    curve,
+    0.5,    // v_max (units/s)
+    2.0,    // a_max (units/s^2)
+    10.0,   // j_max (units/s^3)
+);
+
+// Use in a control loop
+let dt = 0.001; // 1 kHz
+let mut t = 0.0f32;
+while t <= plan.duration() {
     let setpoint = plan.position(t);
-    actuator.move_to(setpoint);
+    // send setpoint to actuator ...
+    t += dt;
 }
 ```
 
-## Ecosystem Integration
+No serialization (`to_bytes` / `from_bytes`) is implemented. `MotionPlan` is an in-process structure only.
+
+## Ecosystem Integration (Planned)
+
+The feature flags `physics`, `edge`, and `ros2` are defined but have no active dependencies. All ecosystem crate integrations are planned for future implementation.
 
 ```
-ALICE-Edge (sensor) ───▶ ALICE-Motion (trajectory) ───▶ Actuator
-      │                         ▲                          │
-      │                         │                          │
-      │                  ALICE-Physics                     │
-      │              (collision avoidance)                  │
-      │                         ▲                          │
-      ▼                         │                          ▼
-ALICE-SDF (obstacle map) ──────┘                   ALICE-Sync
-                                                (multi-robot sync)
+ALICE-Edge (sensor) ----> ALICE-Motion (trajectory) ----> Actuator
+                                  |
+                          ALICE-Physics (Planned)
+                       (collision avoidance / SDF)
 ```
 
-| Bridge | Direction | Data |
-|--------|-----------|------|
-| Edge → Motion | Sensor feedback → PID correction | Position/force readings |
-| Physics → Motion | Collision-free path planning | SDF obstacle field |
-| Motion → Sync | Multi-robot trajectory coordination | Curve coefficients |
-| Motion → Print | G-code as degenerate case (linear segments) | MotionPacket |
-
-## Target Platforms
-
-| Platform | DOF | Control Rate | Latency |
-|----------|-----|-------------|---------|
-| Raspberry Pi 5 | 6+ DOF | 10 kHz | < 100 µs |
-| STM32H7 (Cortex-M7) | 6 DOF | 20 kHz | < 50 µs |
-| ESP32-S3 | 3 DOF | 5 kHz | < 200 µs |
-| x86_64 (simulation) | 32+ DOF | 100 kHz | < 10 µs |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `physics` | Planned | ALICE-Physics collision avoidance bridge |
+| `edge` | Planned | ALICE-Edge sensor feedback bridge |
+| `ros2` | Planned | ROS 2 message type bridge |
 
 ## Feature Flags
 
 | Feature | Dependencies | Description |
 |---------|-------------|-------------|
 | *(default)* | None | Core trajectory math, no_std, zero alloc |
-| `std` | std | File I/O, dynamic allocation |
-| `physics` | alice-physics | ALICE-Physics collision avoidance |
-| `edge` | alice-edge | ALICE-Edge sensor feedback bridge |
-| `ros2` | std | ROS 2 message type bridge (future) |
+| `std` | std | Enables std-dependent features |
+| `physics` | *(none yet)* | Reserved for ALICE-Physics integration (Planned) |
+| `edge` | *(none yet)* | Reserved for ALICE-Edge integration (Planned) |
+| `ros2` | *(none yet)* | Reserved for ROS 2 bridge (Planned) |
+
+## Tests
+
+84 tests across all modules, runnable with `cargo test`:
+
+| Module | Tests |
+|--------|-------|
+| `vec3` | 22 |
+| `bezier` | 17 |
+| `nurbs` | 15 |
+| `profile` | 19 |
+| `planner` | 11 |
+| **Total** | **84** |
 
 ## License
 
