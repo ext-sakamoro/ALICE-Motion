@@ -40,7 +40,7 @@ pub struct TrapezoidalProfile {
 }
 
 impl TrapezoidalProfile {
-    #[must_use] 
+    #[must_use]
     pub fn new(v_max: f32, a_max: f32, distance: f32) -> Self {
         let t_accel = v_max / a_max;
         let d_accel = 0.5 * a_max * t_accel * t_accel;
@@ -141,7 +141,7 @@ pub struct SCurveProfile {
 }
 
 impl SCurveProfile {
-    #[must_use] 
+    #[must_use]
     pub fn new(v_max: f32, a_max: f32, j_max: f32, distance: f32) -> Self {
         // Simplified: assume full s-curve profile
         let t_jerk = a_max / j_max;
@@ -220,6 +220,7 @@ fn fast_sqrt_profile(x: f32) -> f32 {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
 
@@ -418,5 +419,55 @@ mod tests {
         // Triangle: t_cruise == 0, so velocity peaks below v_max
         // The peak velocity = a_max * t_half; position at duration ≈ distance
         assert!((prof.position_at(prof.duration()) - 0.1).abs() < 0.05);
+    }
+
+    // --- New tests (batch 2) ---
+
+    /// `position_at` with negative t must clamp to the same value as t=0
+    #[test]
+    fn test_trapezoidal_position_clamped_below_zero() {
+        let prof = TrapezoidalProfile::new(1.0, 2.0, 10.0);
+        let p_neg = prof.position_at(-1.0);
+        let p_zero = prof.position_at(0.0);
+        assert!(
+            (p_neg - p_zero).abs() < 1e-6,
+            "negative t must clamp to t=0"
+        );
+    }
+
+    /// `position_at` with t > duration must clamp to the same value as `position_at(duration)`
+    #[test]
+    fn test_trapezoidal_position_clamped_above_duration() {
+        let prof = TrapezoidalProfile::new(1.0, 2.0, 10.0);
+        let dur = prof.duration();
+        let p_over = prof.position_at(dur + 100.0);
+        let p_end = prof.position_at(dur);
+        assert!(
+            (p_over - p_end).abs() < 1e-5,
+            "t > duration must clamp to duration"
+        );
+    }
+
+    /// S-curve: velocity at end should be near zero (smoothstep derivative → 0)
+    #[test]
+    fn test_scurve_velocity_at_end_near_zero() {
+        let prof = SCurveProfile::new(2.0, 4.0, 20.0, 20.0);
+        let v_end = prof.velocity_at(prof.duration());
+        assert!(
+            v_end.abs() < 1.0,
+            "S-curve velocity at end should be near zero, got {v_end}"
+        );
+    }
+
+    /// `TrapezoidalProfile` with zero distance: duration is finite and position never negative
+    #[test]
+    fn test_trapezoidal_zero_distance() {
+        let prof = TrapezoidalProfile::new(2.0, 4.0, 0.0);
+        assert!(prof.duration().is_finite(), "duration must be finite");
+        let p = prof.position_at(0.5);
+        assert!(
+            p >= -1e-6,
+            "position must be >= 0 for zero-distance profile"
+        );
     }
 }

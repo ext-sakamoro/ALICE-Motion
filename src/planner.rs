@@ -30,7 +30,7 @@ enum ProfileKind {
 
 impl MotionPlan {
     /// Create from Bezier + trapezoidal profile
-    #[must_use] 
+    #[must_use]
     pub fn bezier_trapezoidal(curve: CubicBezier, v_max: f32, a_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
@@ -40,7 +40,7 @@ impl MotionPlan {
     }
 
     /// Create from NURBS + S-curve profile
-    #[must_use] 
+    #[must_use]
     pub fn nurbs_scurve(curve: NurbsCurve, v_max: f32, a_max: f32, j_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
@@ -50,7 +50,7 @@ impl MotionPlan {
     }
 
     /// Position at time t (seconds)
-    #[must_use] 
+    #[must_use]
     pub fn position(&self, t: f32) -> Vec3 {
         let s = self.path_parameter(t);
         match &self.path {
@@ -60,7 +60,7 @@ impl MotionPlan {
     }
 
     /// Velocity vector at time t
-    #[must_use] 
+    #[must_use]
     pub fn velocity(&self, t: f32) -> Vec3 {
         const H: f32 = 0.0005;
         const INV_2H: f32 = 1.0 / (2.0 * 0.0005);
@@ -76,7 +76,7 @@ impl MotionPlan {
     }
 
     /// Acceleration vector at time t
-    #[must_use] 
+    #[must_use]
     pub fn acceleration(&self, t: f32) -> Vec3 {
         const H: f32 = 0.001;
         const INV_2H: f32 = 1.0 / (2.0 * 0.001);
@@ -92,7 +92,7 @@ impl MotionPlan {
     }
 
     /// Total motion duration
-    #[must_use] 
+    #[must_use]
     pub fn duration(&self) -> f32 {
         match &self.profile {
             ProfileKind::Trapezoidal(p) => p.duration(),
@@ -125,7 +125,7 @@ impl MotionPlan {
     }
 
     /// Speed (scalar velocity magnitude) at time t
-    #[must_use] 
+    #[must_use]
     pub fn speed(&self, t: f32) -> f32 {
         self.velocity(t).length()
     }
@@ -280,6 +280,57 @@ mod tests {
             "faster plan should be shorter: {} vs {}",
             plan_fast.duration(),
             plan_slow.duration()
+        );
+    }
+
+    // --- New tests (batch 2) ---
+
+    /// `bezier_trapezoidal`: x-position is non-decreasing for a +x trajectory
+    #[test]
+    fn test_plan_bezier_position_x_monotone() {
+        let curve = CubicBezier::from_endpoints(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
+        let plan = MotionPlan::bezier_trapezoidal(curve, 2.0, 4.0);
+        let n = 50;
+        let mut prev_x = plan.position(0.0).x;
+        for i in 1..=n {
+            let t = plan.duration() * i as f32 / n as f32;
+            let curr_x = plan.position(t).x;
+            assert!(
+                curr_x >= prev_x - 0.05,
+                "x must be non-decreasing at t={t}: {curr_x} < {prev_x}"
+            );
+            prev_x = curr_x;
+        }
+    }
+
+    /// NURBS plan: end position should be near the last control point
+    #[test]
+    fn test_plan_nurbs_end_position_near_last_point() {
+        let end = Vec3::new(10.0, 0.0, 0.0);
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(3.0, 5.0, 0.0))
+            .add_point(Vec3::new(7.0, 5.0, 0.0))
+            .add_point(end)
+            .build();
+        let plan = MotionPlan::nurbs_scurve(curve, 2.0, 4.0, 20.0);
+        let final_pos = plan.position(plan.duration());
+        assert!(
+            final_pos.distance(end) < 1.0,
+            "NURBS plan end must be near last control point, got {final_pos:?}"
+        );
+    }
+
+    /// `bezier_trapezoidal` with 3D diagonal path: end position near expected destination
+    #[test]
+    fn test_plan_bezier_3d_diagonal_end_position() {
+        let dest = Vec3::new(6.0, 6.0, 6.0);
+        let curve = CubicBezier::from_endpoints(Vec3::ZERO, dest);
+        let plan = MotionPlan::bezier_trapezoidal(curve, 1.0, 2.0);
+        let final_pos = plan.position(plan.duration());
+        assert!(
+            final_pos.distance(dest) < 1.0,
+            "3D diagonal plan must end near dest, got {final_pos:?}"
         );
     }
 }

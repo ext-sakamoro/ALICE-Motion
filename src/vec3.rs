@@ -11,21 +11,21 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Vec3 = Vec3 {
+    pub const ZERO: Self = Self {
         x: 0.0,
         y: 0.0,
         z: 0.0,
     };
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
     #[inline]
-    #[must_use] 
-    pub fn from_array(a: [f32; 3]) -> Self {
+    #[must_use]
+    pub const fn from_array(a: [f32; 3]) -> Self {
         Self {
             x: a[0],
             y: a[1],
@@ -34,19 +34,19 @@ impl Vec3 {
     }
 
     #[inline]
-    #[must_use] 
-    pub fn to_array(self) -> [f32; 3] {
+    #[must_use]
+    pub const fn to_array(self) -> [f32; 3] {
         [self.x, self.y, self.z]
     }
 
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn cross(self, other: Self) -> Self {
         Self {
             x: self.y * other.z - self.z * other.y,
@@ -56,19 +56,19 @@ impl Vec3 {
     }
 
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn length(self) -> f32 {
         fast_sqrt(self.length_squared())
     }
 
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn normalize(self) -> Self {
         let len = self.length();
         if len < 1e-10 {
@@ -80,21 +80,21 @@ impl Vec3 {
 
     /// Linear interpolation
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn lerp(self, other: Self, t: f32) -> Self {
         self * (1.0 - t) + other * t
     }
 
     /// Distance to another point
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn distance(self, other: Self) -> f32 {
         (self - other).length()
     }
 
     /// Distance squared
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn distance_squared(self, other: Self) -> f32 {
         (self - other).length_squared()
     }
@@ -163,6 +163,7 @@ impl core::ops::Neg for Vec3 {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp, clippy::approx_constant)]
 mod tests {
     use super::*;
 
@@ -337,11 +338,11 @@ mod tests {
             v.y.to_bits().to_le_bytes(),
             v.z.to_bits().to_le_bytes(),
         ];
-        let mut h: u64 = 0xcbf29ce484222325;
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         for chunk in &bytes {
             for &b in chunk {
                 h ^= b as u64;
-                h = h.wrapping_mul(0x100000001b3);
+                h = h.wrapping_mul(0x0100_0000_01b3);
             }
         }
         h
@@ -367,5 +368,52 @@ mod tests {
         let a = Vec3::new(1.0, 0.0, 0.0);
         let b = Vec3::new(0.0, 1.0, 0.0);
         assert_ne!(fnv1a_vec3(a), fnv1a_vec3(b));
+    }
+
+    // --- New tests (batch 2) ---
+
+    /// lerp midpoint in full 3D: all three components must interpolate
+    #[test]
+    fn test_lerp_midpoint_3d() {
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b = Vec3::new(4.0, 6.0, 8.0);
+        let mid = a.lerp(b, 0.5);
+        assert!((mid.x - 2.0).abs() < 1e-5, "x mid {}", mid.x);
+        assert!((mid.y - 3.0).abs() < 1e-5, "y mid {}", mid.y);
+        assert!((mid.z - 4.0).abs() < 1e-5, "z mid {}", mid.z);
+    }
+
+    /// Cross product triple product: a · (a × b) must be 0 (perpendicularity)
+    #[test]
+    fn test_cross_perpendicular_to_inputs() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(4.0, 5.0, 6.0);
+        let c = a.cross(b);
+        assert!(
+            a.dot(c).abs() < 1e-4,
+            "a · (a×b) must be ~0, got {}",
+            a.dot(c)
+        );
+        assert!(
+            b.dot(c).abs() < 1e-4,
+            "b · (a×b) must be ~0, got {}",
+            b.dot(c)
+        );
+    }
+
+    /// `distance_squared` must equal `(a-b).length_squared()` and be symmetric
+    #[test]
+    fn test_distance_squared_symmetry() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(4.0, 6.0, 8.0);
+        // distance_squared is length_squared of the difference — exact, no sqrt rounding
+        let dsq = a.distance_squared(b);
+        let expected = (a - b).length_squared();
+        assert!(
+            (dsq - expected).abs() < 1e-6,
+            "dsq={dsq} expected={expected}"
+        );
+        // must be symmetric: d(a,b)² == d(b,a)²
+        assert!((a.distance_squared(b) - b.distance_squared(a)).abs() < 1e-6);
     }
 }

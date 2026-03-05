@@ -13,10 +13,12 @@ readme = "README.md"
 [lib]
 name = "alice_motion"
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
 
 [features]
 default = []
 std = []
+ffi = ["std"]
 physics = ["std"]  # ALICE-Physics deterministic integration (future)
 edge = ["std"]     # ALICE-Edge sensor feedback bridge (future)
 ros2 = ["std"]     # ROS 2 message bridge (future)

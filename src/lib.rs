@@ -20,6 +20,7 @@
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
 //! | `std` | no | Standard library support |
+//! | `ffi` | no | C FFI bindings (cdylib) for Unity / UE5 |
 //! | `physics` | no | ALICE-Physics deterministic integration (future) |
 //! | `edge` | no | ALICE-Edge sensor feedback bridge (future) |
 //! | `ros2` | no | ROS 2 message bridge (future) |
@@ -61,10 +62,13 @@
     clippy::many_single_char_names,
     clippy::module_name_repetitions,
     clippy::inline_always,
+    clippy::suboptimal_flops
 )]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod bezier;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 pub mod nurbs;
 pub mod planner;
 pub mod profile;

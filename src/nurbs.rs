@@ -35,8 +35,8 @@ pub struct NurbsCurve {
 
 impl NurbsCurve {
     /// Create a NURBS curve builder
-    #[must_use] 
-    pub fn builder(degree: u8) -> NurbsBuilder {
+    #[must_use]
+    pub const fn builder(degree: u8) -> NurbsBuilder {
         NurbsBuilder {
             degree,
             points: [Vec3::ZERO; MAX_CONTROL_POINTS],
@@ -46,7 +46,7 @@ impl NurbsCurve {
     }
 
     /// Evaluate position at parameter u ∈ [0, 1]
-    #[must_use] 
+    #[must_use]
     pub fn position(&self, u: f32) -> Vec3 {
         let p = self.degree as usize;
 
@@ -79,7 +79,7 @@ impl NurbsCurve {
     }
 
     /// Evaluate first derivative (velocity) using finite differences
-    #[must_use] 
+    #[must_use]
     pub fn velocity(&self, u: f32) -> Vec3 {
         const INV_2H: f32 = 1.0 / (2.0 * 0.001);
         let h = 0.001;
@@ -89,13 +89,13 @@ impl NurbsCurve {
     }
 
     /// Number of control points
-    #[must_use] 
-    pub fn point_count(&self) -> usize {
+    #[must_use]
+    pub const fn point_count(&self) -> usize {
         self.n_points
     }
 
     /// Approximate arc length
-    #[must_use] 
+    #[must_use]
     pub fn arc_length(&self, subdivisions: usize) -> f32 {
         let mut length = 0.0f32;
         let mut prev = self.position(0.0);
@@ -150,8 +150,8 @@ pub struct NurbsBuilder {
 
 impl NurbsBuilder {
     /// Add a control point with weight 1.0
-    #[must_use] 
-    pub fn add_point(mut self, point: Vec3) -> Self {
+    #[must_use]
+    pub const fn add_point(mut self, point: Vec3) -> Self {
         if self.n_points < MAX_CONTROL_POINTS {
             self.points[self.n_points] = point;
             self.weights[self.n_points] = 1.0;
@@ -161,8 +161,8 @@ impl NurbsBuilder {
     }
 
     /// Add a weighted control point
-    #[must_use] 
-    pub fn add_weighted_point(mut self, point: Vec3, weight: f32) -> Self {
+    #[must_use]
+    pub const fn add_weighted_point(mut self, point: Vec3, weight: f32) -> Self {
         if self.n_points < MAX_CONTROL_POINTS {
             self.points[self.n_points] = point;
             self.weights[self.n_points] = weight;
@@ -172,7 +172,7 @@ impl NurbsBuilder {
     }
 
     /// Build the NURBS curve with uniform knot vector
-    #[must_use] 
+    #[must_use]
     pub fn build(self) -> NurbsCurve {
         let p = self.degree as usize;
         let n = self.n_points;
@@ -286,7 +286,7 @@ mod tests {
             return 0.0;
         }
         let i = f32::to_bits(x);
-        let i = 0x1fbd1df5 + (i >> 1);
+        let i = 0x1fbd_1df5 + (i >> 1);
         let y = f32::from_bits(i);
         0.5 * (y + x / y)
     }
@@ -386,9 +386,7 @@ mod tests {
         let long_len = long_curve.arc_length(50);
         assert!(
             long_len > short_len,
-            "longer span must yield longer arc, {} vs {}",
-            long_len,
-            short_len
+            "longer span must yield longer arc, {long_len} vs {short_len}"
         );
     }
 
@@ -416,17 +414,17 @@ mod tests {
 
     // FNV-1a content hash over a sampled NURBS trajectory
     fn fnv1a(data: &[u8]) -> u64 {
-        let mut h: u64 = 0xcbf29ce484222325;
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         for &b in data {
             h ^= b as u64;
-            h = h.wrapping_mul(0x100000001b3);
+            h = h.wrapping_mul(0x0100_0000_01b3);
         }
         h
     }
 
     fn hash_nurbs_samples(curve: &NurbsCurve, n: usize) -> u64 {
         let mut bytes = [0u8; 12]; // 3 x f32
-        let mut h: u64 = 0xcbf29ce484222325;
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         for i in 0..=n {
             let u = i as f32 / n as f32;
             let p = curve.position(u);
@@ -438,7 +436,7 @@ mod tests {
             bytes[8..12].copy_from_slice(&pz);
             let next = fnv1a(&bytes);
             h ^= next;
-            h = h.wrapping_mul(0x100000001b3);
+            h = h.wrapping_mul(0x0100_0000_01b3);
         }
         h
     }
@@ -466,5 +464,40 @@ mod tests {
         let h1 = hash_nurbs_samples(&curve, 16);
         let h2 = hash_nurbs_samples(&curve, 16);
         assert_eq!(h1, h2, "content hash must be deterministic");
+    }
+
+    // --- New tests (batch 2) ---
+
+    /// Straight-line NURBS (all y=0) must have near-zero y at every sample
+    #[test]
+    fn test_nurbs_straight_line_y_near_zero() {
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 0.0, 0.0))
+            .add_point(Vec3::new(2.0, 0.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        for i in 0..=20 {
+            let u = i as f32 / 20.0;
+            let p = curve.position(u);
+            assert!(
+                p.y.abs() < 1e-5,
+                "y must be ~0 for straight-line NURBS at u={u}, got {}",
+                p.y
+            );
+        }
+    }
+
+    /// `arc_length` with 1 subdivision returns a positive chord length
+    #[test]
+    fn test_nurbs_arc_length_single_subdivision() {
+        let curve = NurbsCurve::builder(3)
+            .add_point(Vec3::new(0.0, 0.0, 0.0))
+            .add_point(Vec3::new(1.0, 0.0, 0.0))
+            .add_point(Vec3::new(2.0, 0.0, 0.0))
+            .add_point(Vec3::new(3.0, 0.0, 0.0))
+            .build();
+        let len = curve.arc_length(1);
+        assert!(len > 0.0, "arc_length(1) must be positive, got {len}");
     }
 }
