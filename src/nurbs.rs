@@ -16,7 +16,7 @@ const MAX_KNOTS: usize = 24;
 ///
 /// C(u) = Σ Nᵢ,ₚ(u) wᵢ Pᵢ / Σ Nᵢ,ₚ(u) wᵢ
 ///
-/// Stored in compact fixed-size arrays for no_std.
+/// Stored in compact fixed-size arrays for `no_std`.
 #[derive(Debug, Clone)]
 pub struct NurbsCurve {
     /// Curve degree (typically 3)
@@ -35,6 +35,7 @@ pub struct NurbsCurve {
 
 impl NurbsCurve {
     /// Create a NURBS curve builder
+    #[must_use] 
     pub fn builder(degree: u8) -> NurbsBuilder {
         NurbsBuilder {
             degree,
@@ -45,6 +46,7 @@ impl NurbsCurve {
     }
 
     /// Evaluate position at parameter u ∈ [0, 1]
+    #[must_use] 
     pub fn position(&self, u: f32) -> Vec3 {
         let p = self.degree as usize;
 
@@ -77,6 +79,7 @@ impl NurbsCurve {
     }
 
     /// Evaluate first derivative (velocity) using finite differences
+    #[must_use] 
     pub fn velocity(&self, u: f32) -> Vec3 {
         const INV_2H: f32 = 1.0 / (2.0 * 0.001);
         let h = 0.001;
@@ -86,11 +89,13 @@ impl NurbsCurve {
     }
 
     /// Number of control points
+    #[must_use] 
     pub fn point_count(&self) -> usize {
         self.n_points
     }
 
     /// Approximate arc length
+    #[must_use] 
     pub fn arc_length(&self, subdivisions: usize) -> f32 {
         let mut length = 0.0f32;
         let mut prev = self.position(0.0);
@@ -111,7 +116,7 @@ impl NurbsCurve {
                 return 1.0;
             }
             // Handle last knot span
-            if i + 1 == self.n_knots - 1 && u == self.knots[i + 1] {
+            if i + 1 == self.n_knots - 1 && (u - self.knots[i + 1]).abs() < f32::EPSILON {
                 return 1.0;
             }
             return 0.0;
@@ -145,6 +150,7 @@ pub struct NurbsBuilder {
 
 impl NurbsBuilder {
     /// Add a control point with weight 1.0
+    #[must_use] 
     pub fn add_point(mut self, point: Vec3) -> Self {
         if self.n_points < MAX_CONTROL_POINTS {
             self.points[self.n_points] = point;
@@ -155,6 +161,7 @@ impl NurbsBuilder {
     }
 
     /// Add a weighted control point
+    #[must_use] 
     pub fn add_weighted_point(mut self, point: Vec3, weight: f32) -> Self {
         if self.n_points < MAX_CONTROL_POINTS {
             self.points[self.n_points] = point;
@@ -165,6 +172,7 @@ impl NurbsBuilder {
     }
 
     /// Build the NURBS curve with uniform knot vector
+    #[must_use] 
     pub fn build(self) -> NurbsCurve {
         let p = self.degree as usize;
         let n = self.n_points;

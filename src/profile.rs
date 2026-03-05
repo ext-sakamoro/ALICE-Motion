@@ -20,7 +20,7 @@ pub trait VelocityProfile {
 /// Trapezoidal velocity profile
 ///
 /// Accelerate → cruise → decelerate
-/// Params: v_max, a_max → 8 bytes
+/// Params: `v_max`, `a_max` → 8 bytes
 #[derive(Debug, Clone, Copy)]
 pub struct TrapezoidalProfile {
     /// Maximum velocity (units/s)
@@ -32,7 +32,7 @@ pub struct TrapezoidalProfile {
     // Computed times
     t_accel: f32,
     t_cruise: f32,
-    /// Deceleration phase duration (mirrors t_accel for symmetric profiles).
+    /// Deceleration phase duration (mirrors `t_accel` for symmetric profiles).
     /// Stored explicitly for future asymmetric decel support.
     #[allow(dead_code)]
     t_decel: f32,
@@ -40,6 +40,7 @@ pub struct TrapezoidalProfile {
 }
 
 impl TrapezoidalProfile {
+    #[must_use] 
     pub fn new(v_max: f32, a_max: f32, distance: f32) -> Self {
         let t_accel = v_max / a_max;
         let d_accel = 0.5 * a_max * t_accel * t_accel;
@@ -119,7 +120,7 @@ impl VelocityProfile for TrapezoidalProfile {
 /// S-curve velocity profile
 ///
 /// Smooth jerk-limited motion: 7 phases.
-/// Params: v_max, a_max, j_max → 12 bytes
+/// Params: `v_max`, `a_max`, `j_max` → 12 bytes
 #[derive(Debug, Clone, Copy)]
 pub struct SCurveProfile {
     /// Maximum velocity
@@ -130,7 +131,7 @@ pub struct SCurveProfile {
     pub j_max: f32,
     /// Total path distance
     pub distance: f32,
-    /// Time to reach a_max (jerk phase).
+    /// Time to reach `a_max` (jerk phase).
     /// Reserved for the full 7-phase S-curve implementation;
     /// currently the simplified smoothstep approximation is used instead.
     #[allow(dead_code)]
@@ -140,6 +141,7 @@ pub struct SCurveProfile {
 }
 
 impl SCurveProfile {
+    #[must_use] 
     pub fn new(v_max: f32, a_max: f32, j_max: f32, distance: f32) -> Self {
         // Simplified: assume full s-curve profile
         let t_jerk = a_max / j_max;
@@ -204,14 +206,14 @@ fn smoothstep(x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
-/// Fast sqrt for no_std profile computation
+/// Fast sqrt for `no_std` profile computation
 #[inline(always)]
 fn fast_sqrt_profile(x: f32) -> f32 {
     if x <= 0.0 {
         return 0.0;
     }
     let i = f32::to_bits(x);
-    let i = 0x1fbd1df5 + (i >> 1);
+    let i = 0x1fbd_1df5 + (i >> 1);
     let y = f32::from_bits(i);
     let inv_y = 1.0 / y;
     0.5 * (y + x * inv_y)

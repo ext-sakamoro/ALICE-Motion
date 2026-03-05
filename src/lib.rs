@@ -52,6 +52,16 @@
 //!
 //! Author: Moroya Sakamoto
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::module_name_repetitions,
+    clippy::inline_always,
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod bezier;

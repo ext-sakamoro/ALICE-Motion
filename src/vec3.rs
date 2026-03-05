@@ -1,4 +1,4 @@
-//! 3D vector type — minimal, no_std, Copy
+//! 3D vector type — minimal, `no_std`, Copy
 //!
 //! Author: Moroya Sakamoto
 
@@ -18,11 +18,13 @@ impl Vec3 {
     };
 
     #[inline]
+    #[must_use] 
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
     #[inline]
+    #[must_use] 
     pub fn from_array(a: [f32; 3]) -> Self {
         Self {
             x: a[0],
@@ -32,16 +34,19 @@ impl Vec3 {
     }
 
     #[inline]
+    #[must_use] 
     pub fn to_array(self) -> [f32; 3] {
         [self.x, self.y, self.z]
     }
 
     #[inline(always)]
+    #[must_use] 
     pub fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
     #[inline]
+    #[must_use] 
     pub fn cross(self, other: Self) -> Self {
         Self {
             x: self.y * other.z - self.z * other.y,
@@ -51,16 +56,19 @@ impl Vec3 {
     }
 
     #[inline(always)]
+    #[must_use] 
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
     #[inline(always)]
+    #[must_use] 
     pub fn length(self) -> f32 {
         fast_sqrt(self.length_squared())
     }
 
     #[inline(always)]
+    #[must_use] 
     pub fn normalize(self) -> Self {
         let len = self.length();
         if len < 1e-10 {
@@ -72,18 +80,21 @@ impl Vec3 {
 
     /// Linear interpolation
     #[inline]
+    #[must_use] 
     pub fn lerp(self, other: Self, t: f32) -> Self {
         self * (1.0 - t) + other * t
     }
 
     /// Distance to another point
     #[inline]
+    #[must_use] 
     pub fn distance(self, other: Self) -> f32 {
         (self - other).length()
     }
 
     /// Distance squared
     #[inline]
+    #[must_use] 
     pub fn distance_squared(self, other: Self) -> f32 {
         (self - other).length_squared()
     }
@@ -96,7 +107,7 @@ fn fast_sqrt(x: f32) -> f32 {
         return 0.0;
     }
     let i = f32::to_bits(x);
-    let i = 0x1fbd1df5 + (i >> 1); // Initial approximation
+    let i = 0x1fbd_1df5 + (i >> 1); // Initial approximation
     let y = f32::from_bits(i);
     // One Newton-Raphson step: 0.5 * (y + x/y) = 0.5 * y + 0.5 * x * inv_y
     let inv_y = 1.0 / y;

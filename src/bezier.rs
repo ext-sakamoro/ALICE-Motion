@@ -17,11 +17,13 @@ pub struct CubicBezier {
 }
 
 impl CubicBezier {
+    #[must_use] 
     pub fn new(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3) -> Self {
         Self { p0, p1, p2, p3 }
     }
 
     /// Create from start/end points with automatic control points
+    #[must_use] 
     pub fn from_endpoints(start: Vec3, end: Vec3) -> Self {
         let dir = end - start;
         Self {
@@ -36,6 +38,7 @@ impl CubicBezier {
     ///
     /// B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
     #[inline]
+    #[must_use] 
     pub fn position(&self, t: f32) -> Vec3 {
         let u = 1.0 - t;
         let u2 = u * u;
@@ -50,6 +53,7 @@ impl CubicBezier {
     ///
     /// B'(t) = 3(1-t)²(P₁-P₀) + 6(1-t)t(P₂-P₁) + 3t²(P₃-P₂)
     #[inline]
+    #[must_use] 
     pub fn velocity(&self, t: f32) -> Vec3 {
         let u = 1.0 - t;
         let d01 = self.p1 - self.p0;
@@ -63,6 +67,7 @@ impl CubicBezier {
     ///
     /// B''(t) = 6(1-t)(P₂-2P₁+P₀) + 6t(P₃-2P₂+P₁)
     #[inline]
+    #[must_use] 
     pub fn acceleration(&self, t: f32) -> Vec3 {
         let u = 1.0 - t;
         let a = self.p2 - self.p1 * 2.0 + self.p0;
@@ -71,6 +76,7 @@ impl CubicBezier {
     }
 
     /// Approximate arc length using subdivision
+    #[must_use] 
     pub fn arc_length(&self, subdivisions: usize) -> f32 {
         let mut length = 0.0f32;
         let mut prev = self.position(0.0);
@@ -85,6 +91,7 @@ impl CubicBezier {
     }
 
     /// Split curve at parameter t (de Casteljau algorithm)
+    #[must_use] 
     pub fn split(&self, t: f32) -> (CubicBezier, CubicBezier) {
         let p01 = self.p0.lerp(self.p1, t);
         let p12 = self.p1.lerp(self.p2, t);
@@ -100,6 +107,7 @@ impl CubicBezier {
     }
 
     /// Serialized size
+    #[must_use] 
     pub const fn size_bytes() -> usize {
         48 // 4 points × 3 floats × 4 bytes
     }
@@ -118,6 +126,7 @@ impl Default for BezierSpline {
 }
 
 impl BezierSpline {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             segments: [CubicBezier::new(Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO); 8],
@@ -136,6 +145,7 @@ impl BezierSpline {
     }
 
     /// Evaluate position at global parameter t ∈ [0, 1]
+    #[must_use] 
     pub fn position(&self, t: f32) -> Vec3 {
         if self.count == 0 {
             return Vec3::ZERO;
@@ -147,6 +157,7 @@ impl BezierSpline {
     }
 
     /// Evaluate velocity at global parameter t
+    #[must_use] 
     pub fn velocity(&self, t: f32) -> Vec3 {
         if self.count == 0 {
             return Vec3::ZERO;
@@ -158,6 +169,7 @@ impl BezierSpline {
     }
 
     /// Total arc length
+    #[must_use] 
     pub fn arc_length(&self) -> f32 {
         let mut total = 0.0f32;
         for i in 0..self.count {
@@ -167,6 +179,7 @@ impl BezierSpline {
     }
 
     /// Number of segments
+    #[must_use] 
     pub fn segment_count(&self) -> usize {
         self.count
     }

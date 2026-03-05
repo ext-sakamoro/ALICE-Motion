@@ -1,6 +1,6 @@
 //! Motion planner — combines trajectory + velocity profile
 //!
-//! Compiles a path curve with a timing law into a MotionPlan
+//! Compiles a path curve with a timing law into a `MotionPlan`
 //! that can be JIT-evaluated at any time t.
 //!
 //! Author: Moroya Sakamoto
@@ -30,6 +30,7 @@ enum ProfileKind {
 
 impl MotionPlan {
     /// Create from Bezier + trapezoidal profile
+    #[must_use] 
     pub fn bezier_trapezoidal(curve: CubicBezier, v_max: f32, a_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
@@ -39,6 +40,7 @@ impl MotionPlan {
     }
 
     /// Create from NURBS + S-curve profile
+    #[must_use] 
     pub fn nurbs_scurve(curve: NurbsCurve, v_max: f32, a_max: f32, j_max: f32) -> Self {
         let distance = curve.arc_length(64);
         Self {
@@ -48,6 +50,7 @@ impl MotionPlan {
     }
 
     /// Position at time t (seconds)
+    #[must_use] 
     pub fn position(&self, t: f32) -> Vec3 {
         let s = self.path_parameter(t);
         match &self.path {
@@ -57,6 +60,7 @@ impl MotionPlan {
     }
 
     /// Velocity vector at time t
+    #[must_use] 
     pub fn velocity(&self, t: f32) -> Vec3 {
         const H: f32 = 0.0005;
         const INV_2H: f32 = 1.0 / (2.0 * 0.0005);
@@ -72,6 +76,7 @@ impl MotionPlan {
     }
 
     /// Acceleration vector at time t
+    #[must_use] 
     pub fn acceleration(&self, t: f32) -> Vec3 {
         const H: f32 = 0.001;
         const INV_2H: f32 = 1.0 / (2.0 * 0.001);
@@ -87,6 +92,7 @@ impl MotionPlan {
     }
 
     /// Total motion duration
+    #[must_use] 
     pub fn duration(&self) -> f32 {
         match &self.profile {
             ProfileKind::Trapezoidal(p) => p.duration(),
@@ -119,6 +125,7 @@ impl MotionPlan {
     }
 
     /// Speed (scalar velocity magnitude) at time t
+    #[must_use] 
     pub fn speed(&self, t: f32) -> f32 {
         self.velocity(t).length()
     }
