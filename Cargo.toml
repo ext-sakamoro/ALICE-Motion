@@ -24,6 +24,7 @@ edge = ["std"]     # ALICE-Edge sensor feedback bridge (future)
 ros2 = ["std"]     # ROS 2 message bridge (future)
 
 [dependencies]
+libm = "0.2"
 # ALICE ecosystem integrations (future)
 # alice-physics = { path = "../ALICE-Physics", optional = true, default-features = false }
 # alice-edge = { path = "../ALICE-Edge", optional = true, features = ["std"] }

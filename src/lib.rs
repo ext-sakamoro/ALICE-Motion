@@ -66,12 +66,18 @@
 )]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 pub mod bezier;
+pub mod collision;
 #[cfg(feature = "ffi")]
 pub mod ffi;
+pub mod ik;
 pub mod nurbs;
 pub mod planner;
 pub mod profile;
+pub mod replan;
 pub mod vec3;
 
 pub use bezier::CubicBezier;
