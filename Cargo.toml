@@ -13,7 +13,9 @@ readme = "README.md"
 [lib]
 name = "alice_motion"
 path = "src/lib.rs"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib"]
+# cdylib は FFI ビルド時に --crate-type cdylib で指定
+# no_std デフォルトのため常時 cdylib にすると clippy が失敗する
 
 [features]
 default = []
