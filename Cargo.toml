@@ -2,7 +2,7 @@
 name = "alice-motion"
 version = "0.1.0"
 edition = "2021"
-authors = ["Moroya Sakamoto"]
+authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Procedural Motion Control — Don't send waypoints, send the trajectory equation"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ext-sakamoro/ALICE-Motion"
