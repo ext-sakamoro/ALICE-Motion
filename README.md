@@ -2,6 +2,8 @@
 
 **Procedural Motion Control — Don't send waypoints, send the trajectory equation**
 
+> Part of **[ALICE-Eco-System](https://github.com/ext-sakamoro/ALICE-Eco-System)** — 260+ crate Edge-to-Cloud data pipeline (SDF / Physics / LLM / Motion / Font / TTS)
+
 > "A robot arm doesn't need 10,000 coordinates. It needs one curve."
 
 ```
