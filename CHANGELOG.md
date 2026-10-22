@@ -4,6 +4,9 @@ All notable changes to ALICE-Motion will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- CI: `ci/**` の branch への送信でも CI を走らせる
+
 ### Fixed
 - licence の file を Cargo.toml の宣言 `MIT OR Apache-2.0` に合わせた: LICENSE-MIT と LICENSE-APACHE (Apache-2.0 の全文) を置き、README と TRADEMARK_NOTICE もそれに合わせた
 
