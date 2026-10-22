@@ -212,7 +212,7 @@ ALICE-Edge (sensor) ----> ALICE-Motion (trajectory) ----> Actuator
 
 ## License
 
-MIT
+MIT OR Apache-2.0 (LICENSE-MIT / LICENSE-APACHE)
 
 ## Author
 
